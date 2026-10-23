@@ -18,7 +18,12 @@ composer require phpay-io/phpay-laravel
 php artisan vendor:publish --tag=phpay-config
 ```
 
-Requisitos: PHP `^8.1` e Laravel 10, 11 ou 12 — o mesmo piso de PHP do core.
+Requisitos: PHP `^8.2` e **Laravel 12**.
+
+> **Por que só o Laravel 12.** Toda release do 10 e do 11 está sob advisory de
+> segurança, e o Composer as bloqueia por padrão — declarar suporte a elas seria
+> prometer o que ninguém consegue instalar. E o 12 exige PHP `^8.2`, que é de
+> onde vem o piso daqui: o core aceita `^8.1`, mas neste pacote o Laravel manda.
 
 ## O gateway vem da config
 

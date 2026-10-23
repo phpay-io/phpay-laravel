@@ -37,27 +37,24 @@ jobs:
         run: composer test:types
 
   test:
-    name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }}
+    name: PHP ${{ matrix.php }} - ${{ matrix.dependencies }}
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
-        # o toolchain de dev (Pest 3) exige PHP >= 8.2, como no core. O que dá
-        # para cobrir no 8.1 está no job `minimum`.
+        # Só o Laravel 12, e isso não é escolha de conveniência: toda release
+        # do 10 e do 11 está sob advisory de segurança, e o Composer as bloqueia
+        # por padrão. Testar aquelas majors exigiria desligar
+        # `policy.advisories.block` — num pacote de pagamentos, não.
+        #
+        # O 12 exige PHP ^8.2, e é de onde vem o piso deste pacote. O core
+        # aceita 8.1, mas aqui o Laravel manda.
+        php: ['8.2', '8.3', '8.4']
+        dependencies: [highest]
         include:
           - php: '8.2'
-            laravel: '10.*'
-            testbench: '8.*'
-          - php: '8.2'
-            laravel: '11.*'
-            testbench: '9.*'
-          - php: '8.3'
-            laravel: '11.*'
-            testbench: '9.*'
-          - php: '8.4'
-            laravel: '12.*'
-            testbench: '10.*'
+            dependencies: lowest
 
     steps:
       - uses: actions/checkout@v7
@@ -69,27 +66,19 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      # o bridge aceita três majors do Laravel, e cada uma casa com uma major
-      # do testbench. Sem fixar as duas, o composer resolveria sempre a mais
-      # nova e a matriz provaria uma combinação só.
-      - name: Fixar a major do Laravel desta linha
-        run: |
-          composer require --no-update --dev \
-            "laravel/framework:${{ matrix.laravel }}" \
-            "orchestra/testbench:${{ matrix.testbench }}"
-
       - name: Install dependencies
-        run: composer update --prefer-dist --no-interaction --no-progress
+        uses: ramsey/composer-install@v4
+        with:
+          dependency-versions: ${{ matrix.dependencies }}
 
       - name: Unit tests (Pest)
         run: composer test:unit
 
-  # O core promete PHP ^8.1 e este pacote acompanha, mas Pest 3 exige 8.2+.
-  # Então aqui se valida o que dá sem o toolchain de dev — que é mais do que
-  # parece: o que quebra numa versão antiga é sintaxe nova e dependência que
-  # subiu o piso, não asserção de teste.
+  # O piso que o composer.json promete, validado por execução e não só por
+  # constraint. O que quebra numa versão antiga é sintaxe nova e dependência
+  # que subiu o piso, não asserção de teste.
   minimum:
-    name: PHP 8.1 (mínimo suportado)
+    name: PHP 8.2 (mínimo suportado)
     runs-on: ubuntu-latest
 
     steps:
@@ -98,15 +87,22 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           coverage: none
           tools: composer:v2
 
       - name: Validar o composer.json
         run: composer validate --strict
 
-      - name: Instalar só as dependências de runtime
-        run: composer update --no-dev --prefer-dist --no-interaction --no-progress
+      # `--no-dev` não ignora o require-dev na resolução, só na instalação —
+      # então o Pint, que exige 8.3 nas versões recentes, entraria na conta.
+      # Tirando o bloco antes, o que se resolve é só o que o consumidor recebe.
+      - name: Resolver só o que o consumidor instala
+        run: |
+          php -r '$c = json_decode(file_get_contents("composer.json"), true);
+                  unset($c["require-dev"], $c["scripts"], $c["config"]["allow-plugins"]);
+                  file_put_contents("composer.json", json_encode($c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));'
+          composer update --no-dev --prefer-dist --no-interaction --no-progress
 
       - name: Conferir a sintaxe de src/
         shell: bash
