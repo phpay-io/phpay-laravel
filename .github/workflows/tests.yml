@@ -1,0 +1,115 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint e análise estática
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Lint (Pint)
+        run: composer test:lint
+
+      - name: Static analysis (PHPStan)
+        run: composer test:types
+
+  test:
+    name: PHP ${{ matrix.php }} - ${{ matrix.dependencies }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Só o Laravel 12, e isso não é escolha de conveniência: toda release
+        # do 10 e do 11 está sob advisory de segurança, e o Composer as bloqueia
+        # por padrão. Testar aquelas majors exigiria desligar
+        # `policy.advisories.block` — num pacote de pagamentos, não.
+        #
+        # O 12 exige PHP ^8.2, e é de onde vem o piso deste pacote. O core
+        # aceita 8.1, mas aqui o Laravel manda.
+        php: ['8.2', '8.3', '8.4']
+        dependencies: [highest]
+        include:
+          - php: '8.2'
+            dependencies: lowest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        uses: ramsey/composer-install@v4
+        with:
+          dependency-versions: ${{ matrix.dependencies }}
+
+      - name: Unit tests (Pest)
+        run: composer test:unit
+
+  # O piso que o composer.json promete, validado por execução e não só por
+  # constraint. O que quebra numa versão antiga é sintaxe nova e dependência
+  # que subiu o piso, não asserção de teste.
+  minimum:
+    name: PHP 8.2 (mínimo suportado)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Validar o composer.json
+        run: composer validate --strict
+
+      # `--no-dev` não ignora o require-dev na resolução, só na instalação —
+      # então o Pint, que exige 8.3 nas versões recentes, entraria na conta.
+      # Tirando o bloco antes, o que se resolve é só o que o consumidor recebe.
+      - name: Resolver só o que o consumidor instala
+        run: |
+          php -r '$c = json_decode(file_get_contents("composer.json"), true);
+                  unset($c["require-dev"], $c["scripts"], $c["config"]["allow-plugins"]);
+                  file_put_contents("composer.json", json_encode($c, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));'
+          composer update --no-dev --prefer-dist --no-interaction --no-progress
+
+      - name: Conferir a sintaxe de src/
+        shell: bash
+        run: |
+          if ! find src -name '*.php' -print0 | xargs -0 -n1 php -l > lint.log 2>&1; then
+            grep -v '^No syntax errors detected' lint.log
+            exit 1
+          fi
+
+          echo "$(grep -c '^No syntax errors detected' lint.log) arquivos sem erro de sintaxe"

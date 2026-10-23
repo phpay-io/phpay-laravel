@@ -11,9 +11,21 @@ O `composer.json` do PHPay não tem dependência de framework, e isso é
 deliberado: um bridge dentro do core forçaria Laravel em todo mundo que instala
 a biblioteca. Então ele mora aqui.
 
-## O que ele faz
+## Instalação
 
-**O gateway vem da config**, em vez de estar escrito no código:
+```bash
+composer require phpay-io/phpay-laravel
+php artisan vendor:publish --tag=phpay-config
+```
+
+Requisitos: PHP `^8.2` e **Laravel 12**.
+
+> **Por que só o Laravel 12.** Toda release do 10 e do 11 está sob advisory de
+> segurança, e o Composer as bloqueia por padrão — declarar suporte a elas seria
+> prometer o que ninguém consegue instalar. E o 12 exige PHP `^8.2`, que é de
+> onde vem o piso daqui: o core aceita `^8.1`, mas neste pacote o Laravel manda.
+
+## O gateway vem da config
 
 ```php
 use PHPay\Laravel\Facades\Phpay;
@@ -30,30 +42,110 @@ Phpay::gateway('woovi')->charge()->create(10050);    // outro, nomeado
 ],
 ```
 
-**O webhook chega como evento**, já verificado e já lido:
+Quem usa um gateway só pode injetar a classe do core direto, sem ver o manager:
 
 ```php
+public function __construct(private PHPay $phpay) {}
+```
+
+As chaves de cada gateway são as que ele exige, e **elas não coincidem**: seis
+pedem uma credencial, três pedem duas, e Mercado Pago, Pagar.me e AbacatePay
+**não aceitam `sandbox`** — o ambiente deles vem do prefixo da credencial.
+Mandar a chave ali levanta exceção em vez de ser ignorada. O config publicado
+traz os nove comentados.
+
+Para ver o que está configurado e o que cada um faz:
+
+```bash
+php artisan phpay:gateways
+```
+
+## O webhook chega como evento
+
+Com `webhooks.route` preenchida, o pacote registra uma rota que verifica a
+assinatura, lê a notificação e despacha um `WebhookEventReceived` **por evento
+lido**:
+
+```php
+use PHPay\Laravel\Events\WebhookEventReceived;
+use PHPay\Webhooks\EventType;
+
 class LiberarPedido
 {
     public function handle(WebhookEventReceived $received): void
     {
-        if ($received->event->type === EventType::PAID) {
-            Pedido::where('cobranca_id', $received->event->resourceId)->update(['pago' => true]);
-        }
+        match ($received->event->type) {
+            EventType::PAID     => $this->liberar($received->event->resourceId),
+            EventType::REFUNDED => $this->estornar($received->event->resourceId),
+            default             => null,
+        };
     }
 }
 ```
 
-## Instalação
+**Por evento lido, não por requisição.** Uma notificação pode trazer vários: a
+API Pix da Efí manda um array de pagamentos recebidos, e o PagBank manda o
+pedido com todas as cobranças.
 
-```bash
-composer require phpay-io/phpay-laravel
-php artisan vendor:publish --tag=phpay-config
+O `Event` é `readonly` e serializa, então listener em fila funciona.
+
+### Quando a notificação não diz o estado
+
+Quatro gateways notificam que algo mudou e nada mais. O
+`requiresLookup()` diz quando é preciso consultar de volta:
+
+```php
+if ($received->event->requiresLookup()) {
+    $cobranca = Phpay::gateway($received->gateway)->charge()->find($received->event->resourceId);
+}
 ```
 
-## Requisitos
+### O gateway que não assina é recusado, não aceito em silêncio
 
-PHP `^8.1` e Laravel 10, 11 ou 12 — o mesmo piso de PHP do core.
+Quatro dos nove não assinam a notificação. Registrar a rota e aceitar seria o
+caminho para confirmação de pagamento forjada por quem descobrir a URL, então a
+rota responde `501` — a menos que a config declare que você confere de outra
+forma:
+
+```php
+'cielo' => ['unverified' => true],
+```
+
+| | assina | é lido |
+| --- | :---: | :---: |
+| Asaas, Woovi, Mercado Pago, PagBank | ✅ | ✅ |
+| Efí, Pagar.me, Cielo | — | ✅ |
+| AbacatePay | ✅ | — |
+| Rede | — | — |
+
+Deixe `webhooks.route` como `null` para cuidar disso no seu próprio controller,
+o que é a escolha certa quando a notificação tem que fazer mais que despachar
+eventos.
+
+## Uma pegadinha de nome
+
+A facade se chama **`Phpay`**, não `PHPay`. Nomes de classe em PHP são
+insensíveis a caixa, então `PHPay\Laravel\Facades\PHPay` e o `PHPay\PHPay`
+do core seriam **o mesmo nome**.
+
+A consequência prática: num arquivo que importa a facade, você não pode
+escrever um nome totalmente qualificado começando em `PHPay\` — ele resolve
+sob o alias. Importe a classe:
+
+```php
+use PHPay\Asaas\Resources\Charge\Charge as AsaasCharge;   // ✅
+// $x instanceof PHPay\Asaas\Resources\Charge\Charge      // ❌ resolve errado
+```
+
+## Desenvolvimento
+
+```bash
+composer install
+composer test        # pint + pest + phpstan
+```
+
+A suíte usa [Testbench](https://github.com/orchestral/testbench) e **não acessa
+a rede**: os gateways não fazem requisição ao serem construídos.
 
 ## Licença
 

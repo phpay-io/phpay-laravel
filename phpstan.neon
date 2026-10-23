@@ -1,0 +1,25 @@
+parameters:
+    level: 9
+    paths:
+        - src
+    # o pacote suporta PHP 8.1+, como o core
+    phpVersion:
+        min: 80100
+        max: 80400
+
+    # O core declara `SupportsWebhookSignature::webhookSignature(): object` e
+    # **não tem interface comum entre os cinco verificadores** — cada gateway
+    # tem a sua `WebhookSignatureInterface`, sem pai compartilhado. Então não há
+    # como tipar a chamada a partir da facade, que é de onde o bridge trabalha.
+    #
+    # Isso é limitação da dependência, não deste pacote, e está registrado em
+    # phpay-io/phpay#146. Quando o core expuser o contrato comum, estas duas
+    # linhas saem daqui.
+    #
+    # A supressão é por mensagem e por arquivo de propósito: qualquer outra
+    # chamada a método inexistente neste pacote continua reprovando.
+    ignoreErrors:
+        -
+            message: '#^Call to an undefined method object::(setSecret|verify)\(\)\.$#'
+            path: src/Http/Middleware/VerifyPHPayWebhook.php
+            count: 2

@@ -1,0 +1,71 @@
+{
+    "name": "phpay-io/phpay-laravel",
+    "type": "library",
+    "description": "Bridge do PHPay para Laravel: o gateway vem da configuração, e o webhook chega como evento.",
+    "keywords": [
+        "laravel",
+        "phpay",
+        "pix",
+        "gateways de pagamento",
+        "webhooks"
+    ],
+    "license": "BUSL-1.1",
+    "authors": [
+        {
+            "name": "Mário Lucas",
+            "email": "mariolucasdev@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "phpay-io/phpay": "^2.5",
+        "illuminate/console": "^12.0",
+        "illuminate/contracts": "^12.0",
+        "illuminate/http": "^12.0",
+        "illuminate/support": "^12.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.30",
+        "orchestra/testbench": "^10.0",
+        "pestphp/pest": "^2.0 || ^3.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PHPay\\Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "prefer-stable": true,
+    "extra": {
+        "laravel": {
+            "providers": [
+                "PHPay\\Laravel\\PHPayServiceProvider"
+            ],
+            "aliases": {
+                "Phpay": "PHPay\\Laravel\\Facades\\Phpay"
+            }
+        }
+    },
+    "scripts": {
+        "lint": "pint -v",
+        "test:lint": "pint --test -v",
+        "test:unit": "pest --colors=always",
+        "test:types": "phpstan analyse",
+        "test": [
+            "@test:lint",
+            "@test:unit",
+            "@test:types"
+        ]
+    }
+}
