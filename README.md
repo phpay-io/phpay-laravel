@@ -3,8 +3,7 @@
 Bridge do [PHPay](https://github.com/phpay-io/phpay) para Laravel: o gateway vem
 da configuração, e o webhook chega como evento.
 
-> **Em construção.** A v0.1 ainda não foi publicada no Packagist, e o pacote
-> aponta para o `dev-develop` do core enquanto a v2.5 não é cortada.
+> **Em construção.** A v0.1 ainda não foi publicada no Packagist.
 
 ## Por que um pacote separado
 

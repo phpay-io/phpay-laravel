@@ -18,7 +18,7 @@
     ],
     "require": {
         "php": "^8.1",
-        "phpay-io/phpay": "dev-develop",
+        "phpay-io/phpay": "^2.5",
         "illuminate/console": "^10.0 || ^11.0 || ^12.0",
         "illuminate/contracts": "^10.0 || ^11.0 || ^12.0",
         "illuminate/http": "^10.0 || ^11.0 || ^12.0",
@@ -46,7 +46,6 @@
         },
         "sort-packages": true
     },
-    "minimum-stability": "dev",
     "prefer-stable": true,
     "extra": {
         "laravel": {
