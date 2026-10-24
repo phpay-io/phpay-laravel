@@ -111,3 +111,19 @@ it('o gateway resolvido é o concreto por dentro', function () {
 
     expect($property->getValue($manager->gateway('asaas')))->toBeInstanceOf(AsaasGateway::class);
 });
+
+it('encaminha para o gateway padrão o que o manager não tem', function () {
+    /*
+     | o README e a lista @method da facade anunciam Phpay::charge() desde o
+     | primeiro commit, e isso levantava "Call to undefined method": o manager
+     | não tinha o método nem encaminhava. Os testes do modo falso acharam.
+     */
+    expect(Phpay::charge())->toBeInstanceOf(AsaasCharge::class)
+        ->and(Phpay::name())->toBe('Asaas')
+        ->and(Phpay::supports(Capability::CHARGES))->toBeTrue();
+});
+
+it('diz quem não tem o método, quando ninguém tem', function () {
+    expect(fn () => Phpay::metodoQueNaoExiste())
+        ->toThrow(BadMethodCallException::class, 'nem o gateway padrão (Asaas)');
+});

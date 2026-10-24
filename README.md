@@ -122,6 +122,40 @@ Deixe `webhooks.route` como `null` para cuidar disso no seu próprio controller,
 o que é a escolha certa quando a notificação tem que fazer mais que despachar
 eventos.
 
+## Testando a sua aplicação
+
+```php
+use PHPay\Laravel\Facades\Phpay;
+
+Phpay::fake([new Response(200, [], json_encode(['id' => 'pay_001']))]);
+
+$pedido->pagar();
+
+Phpay::assertSent(fn (RequestInterface $r) => $r->getMethod() === 'POST');
+Phpay::assertSentCount(1);
+Phpay::assertNothingSent();
+```
+
+Fino sobre o `ClientFactory::fake()` do core, que falseia **todos** os clients
+da biblioteca — inclusive os segundos que Efí, Cielo e Rede mantêm para outro
+host. O que o bridge acrescenta é descartar o cache de gateway resolvido: um
+gateway construído antes do `fake()` carrega client real, e sem isso a primeira
+chamada do teste iria para a rede.
+
+A mensagem de falha diz o que **foi** enviado, com método e URI:
+
+```
+Esperava nenhuma requisição. Foram enviadas 1:
+  GET https://sandbox.asaas.com/api/v3/payments/pay_001
+```
+
+**Desligue no teardown.** É estado estático no core, com o contrato do
+`Mail::fake()`:
+
+```php
+afterEach(fn () => Phpay::stopFaking());
+```
+
 ## Uma pegadinha de nome
 
 A facade se chama **`Phpay`**, não `PHPay`. Nomes de classe em PHP são

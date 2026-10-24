@@ -2,6 +2,7 @@
 
 namespace PHPay\Laravel;
 
+use BadMethodCallException;
 use Closure;
 use GuzzleHttp\Handler\MockHandler;
 use Illuminate\Contracts\Config\Repository;
@@ -18,14 +19,8 @@ use Throwable;
  * resolves gateways from `config/phpay.php`.
  *
  * the core's registry turns a name and an array into a gateway; this adds the
- * three things an application needs on top: where the array comes from, that
- * the same name resolves to the same instance within a request, and the fake
- * mode plus its assertions.
- *
- * the fake lives here rather than in a separate class for one reason: turning
- * it on has to drop the resolved-gateway cache, and that cache is this class's.
- * A fake that could not reach it would hand back gateways born before the fake,
- * still pointed at the network.
+ * two things an application needs on top: where the array comes from, and that
+ * the same name resolves to the same instance within a request.
  */
 class GatewayManager
 {
@@ -115,6 +110,38 @@ class GatewayManager
     public function forget(): void
     {
         $this->resolved = [];
+    }
+
+    /**
+     * forward anything else to the default gateway.
+     *
+     * `Phpay::charge()` reads better than `Phpay::gateway()->charge()` for the
+     * common case of one configured gateway, and the facade's `@method` list
+     * advertises exactly that — as does the first example in the README.
+     *
+     * **It raised `Call to undefined method` until this existed.** The manager
+     * had neither those methods nor any forwarding, so the advertised shortcut
+     * never worked.
+     *
+     * @param string $method
+     * @param array<int, mixed> $arguments
+     * @return mixed
+     * @throws BadMethodCallException when the gateway has no such method either
+     */
+    public function __call(string $method, array $arguments): mixed
+    {
+        $gateway = $this->gateway();
+
+        if (!method_exists($gateway, $method)) {
+            throw new BadMethodCallException(sprintf(
+                'Nem %s nem o gateway padrão (%s) têm o método "%s".',
+                static::class,
+                $gateway->name(),
+                $method
+            ));
+        }
+
+        return $gateway->{$method}(...$arguments);
     }
 
     /**
