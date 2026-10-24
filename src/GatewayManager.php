@@ -2,6 +2,7 @@
 
 namespace PHPay\Laravel;
 
+use BadMethodCallException;
 use Illuminate\Contracts\Config\Repository;
 use PHPay\Exceptions\ValidationException;
 use PHPay\Laravel\Exceptions\GatewayNotConfigured;
@@ -103,6 +104,38 @@ class GatewayManager
     public function forget(): void
     {
         $this->resolved = [];
+    }
+
+    /**
+     * forward anything else to the default gateway.
+     *
+     * `Phpay::charge()` reads better than `Phpay::gateway()->charge()` for the
+     * common case of one configured gateway, and the facade's `@method` list
+     * advertises exactly that — as does the first example in the README.
+     *
+     * **It raised `Call to undefined method` until this existed.** The manager
+     * had neither those methods nor any forwarding, so the advertised shortcut
+     * never worked.
+     *
+     * @param string $method
+     * @param array<int, mixed> $arguments
+     * @return mixed
+     * @throws BadMethodCallException when the gateway has no such method either
+     */
+    public function __call(string $method, array $arguments): mixed
+    {
+        $gateway = $this->gateway();
+
+        if (!method_exists($gateway, $method)) {
+            throw new BadMethodCallException(sprintf(
+                'Nem %s nem o gateway padrão (%s) têm o método "%s".',
+                static::class,
+                $gateway->name(),
+                $method
+            ));
+        }
+
+        return $gateway->{$method}(...$arguments);
     }
 
     /**
