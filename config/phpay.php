@@ -11,7 +11,7 @@ return [
      |
      | O nome que `Phpay::charge()` usa quando você não pede outro. Tem que ser
      | um dos que o PHPay conhece: asaas, woovi, efi, mercadopago, pagbank,
-     | pagarme, cielo, rede, abacatepay.
+     | pagarme, cielo, rede, abacatepay, inter.
      |
      */
 
@@ -23,7 +23,7 @@ return [
      |--------------------------------------------------------------------------
      |
      | As chaves de cada gateway são as que ele exige — e elas não coincidem:
-     | seis pedem uma credencial, três pedem duas. Mercado Pago, Pagar.me e
+     | seis pedem uma credencial, quatro pedem duas. Mercado Pago, Pagar.me e
      | AbacatePay NÃO aceitam `sandbox`, porque o ambiente deles vem do prefixo
      | da credencial; mandar a chave ali levanta exceção em vez de ser ignorada.
      |
@@ -50,6 +50,7 @@ return [
 
             // a API Pix da Efí é só por mTLS: caminho do .p12 ou .pem
             'certificate' => env('EFI_CERTIFICATE'),
+            'passphrase'  => env('EFI_CERTIFICATE_PASSPHRASE'),
         ],
 
         'mercadopago' => [
@@ -79,6 +80,40 @@ return [
 
         'abacatepay' => [
             'token' => env('ABACATEPAY_TOKEN'),
+        ],
+
+        'inter' => [
+            'clientId'     => env('INTER_CLIENT_ID'),
+            'clientSecret' => env('INTER_CLIENT_SECRET'),
+            'sandbox'      => env('INTER_SANDBOX', true),
+
+            /*
+             | Toda requisição do Inter é por mTLS, inclusive a do token.
+             |
+             | Ele entrega certificado e chave em DOIS arquivos (.crt + .key):
+             | informe os dois e o pacote monta o par. A documentação do Inter
+             | manda juntá-los com `openssl pkcs12 -export` antes de usar — não
+             | precisa, mas se você já converteu, preencha só `certificate` com
+             | o caminho do .p12.
+             */
+            'certificate' => env('INTER_CERTIFICATE'),
+            'privateKey'  => env('INTER_PRIVATE_KEY'),
+            'passphrase'  => env('INTER_CERTIFICATE_PASSPHRASE'),
+
+            /*
+             | O token do Inter é emitido POR ESCOPO, e `scope` é obrigatório na
+             | requisição. Vazio aqui = a união do que as capacidades do gateway
+             | usam, que é o que a maioria quer. Preencha só se a sua aplicação
+             | tem permissão mais estreita — pedir escopo que ela não tem reprova
+             | a requisição inteira do token.
+             */
+            'scopes' => env('INTER_SCOPES'),
+
+            /*
+             | Header `x-conta-corrente`. Só quando a aplicação está vinculada a
+             | mais de uma conta corrente; vazio, o header não é mandado.
+             */
+            'account' => env('INTER_ACCOUNT'),
         ],
 
     ],
@@ -112,10 +147,11 @@ return [
         ],
 
         /*
-         | Efí, Pagar.me, Cielo e Rede NÃO assinam a notificação, cada um pelo
-         | seu motivo (a Efí usa mTLS; as outras indicam consultar a transação
-         | de volta). Sem assinatura, a rota recusa a notificação — a menos que
-         | você declare aqui que conhece o risco e confere de outra forma.
+         | Efí, Inter, Pagar.me, Cielo e Rede NÃO assinam a notificação, cada um
+         | pelo seu motivo (Efí e Inter usam mTLS; as outras indicam consultar a
+         | transação de volta). Sem assinatura, a rota recusa a notificação — a
+         | menos que você declare aqui que conhece o risco e confere de outra
+         | forma.
          |
          | 'cielo' => ['unverified' => true],
          */

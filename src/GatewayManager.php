@@ -7,7 +7,7 @@ use Closure;
 use GuzzleHttp\Handler\MockHandler;
 use Illuminate\Contracts\Config\Repository;
 use PHPay\Exceptions\ValidationException;
-use PHPay\Http\ClientFactory;
+use PHPay\Http\{Certificate, ClientFactory};
 use PHPay\Laravel\Exceptions\GatewayNotConfigured;
 use PHPay\PHPay;
 use PHPay\Support\Gateway;
@@ -309,6 +309,65 @@ class GatewayManager
             static fn (mixed $value): bool => $value !== null
         );
 
-        return $filtered;
+        return $this->withCertificate($name, $filtered);
+    }
+
+    /**
+     * turns the certificate keys of the config into the value object.
+     *
+     * **this does not live in `config/phpay.php`, and that is not a
+     * preference.** `config:cache` serializes the config with `var_export`,
+     * and a `Certificate` has no `__set_state()`, so a cached config would be
+     * code that does not load. And the constructor raises when a file is
+     * unreadable — inside the config, that means *every* artisan command,
+     * `config:clear` included. Here it happens when the gateway is resolved,
+     * which is where a wrong path has somewhere to show.
+     *
+     * the core takes `certificate` as a path to one bundled file or as the
+     * value object, and nothing else. Inter issues the certificate and the key
+     * as two files, so the pair is assembled here — `privateKey` and
+     * `passphrase` are **consumed**, never forwarded, because the core refuses
+     * a config key it does not know and that refusal is what catches a typo.
+     *
+     * @param string $name
+     * @param array<string, mixed> $config
+     * @return array<string, mixed>
+     * @throws GatewayNotConfigured
+     * @throws ValidationException when a file is missing or the format is wrong
+     */
+    private function withCertificate(string $name, array $config): array
+    {
+        $key        = $config['privateKey'] ?? null;
+        $passphrase = $config['passphrase'] ?? null;
+
+        unset($config['privateKey'], $config['passphrase']);
+
+        /*
+         | only for a gateway that takes a certificate at all. Asking the
+         | registry keeps the list in one place, and a name that is not a
+         | gateway falls through to the core's own message about it.
+         */
+        if (!in_array('certificate', Gateway::tryFrom($name)?->options() ?? [], true)) {
+            return $config;
+        }
+
+        $certificate = $config['certificate'] ?? null;
+        $hasKey      = is_string($key) && trim($key) !== '';
+
+        if (!is_string($certificate) || trim($certificate) === '') {
+            if ($hasKey) {
+                throw GatewayNotConfigured::halfCertificate($name);
+            }
+
+            return $config;
+        }
+
+        $passphrase = is_string($passphrase) && trim($passphrase) !== '' ? $passphrase : null;
+
+        $config['certificate'] = $hasKey
+            ? Certificate::pair($certificate, (string) $key, $passphrase)
+            : new Certificate($certificate, $passphrase);
+
+        return $config;
     }
 }

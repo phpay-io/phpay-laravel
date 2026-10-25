@@ -12,12 +12,13 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * refuses a notification that was not proved to come from the gateway.
  *
- * **it never passes in silence.** Four of the nine gateways do not sign, each
- * for its own reason, and registering a webhook route for one of them without
- * saying so is how a forged payment confirmation gets in — which is the risk
- * the signature capability exists to close. So a gateway that cannot be
- * verified is refused with `501`, unless the application declares in config
- * that it knows and checks another way:
+ * **it never passes in silence.** Five of the ten gateways do not sign, each
+ * for its own reason — Efí and Inter notify over mTLS, the others point at
+ * reading the transaction back — and registering a webhook route for one of
+ * them without saying so is how a forged payment confirmation gets in, which
+ * is the risk the signature capability exists to close. So a gateway that
+ * cannot be verified is refused with `501`, unless the application declares in
+ * config that it knows and checks another way:
  *
  * ```php
  * 'cielo' => ['unverified' => true],

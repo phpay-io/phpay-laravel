@@ -49,10 +49,58 @@ public function __construct(private PHPay $phpay) {}
 ```
 
 As chaves de cada gateway são as que ele exige, e **elas não coincidem**: seis
-pedem uma credencial, três pedem duas, e Mercado Pago, Pagar.me e AbacatePay
+pedem uma credencial, quatro pedem duas, e Mercado Pago, Pagar.me e AbacatePay
 **não aceitam `sandbox`** — o ambiente deles vem do prefixo da credencial.
 Mandar a chave ali levanta exceção em vez de ser ignorada. O config publicado
-traz os nove comentados.
+traz os dez comentados.
+
+### Certificado: o Inter entrega em dois arquivos
+
+Efí e Inter falam **mTLS**, e não entregam o certificado do mesmo jeito. A Efí
+manda um `.p12` com certificado e chave dentro; o Inter manda um `.crt` e um
+`.key` separados. Os dois casos são configuração:
+
+```php
+'efi' => [
+    'certificate' => env('EFI_CERTIFICATE'),              // caminho do .p12
+    'passphrase'  => env('EFI_CERTIFICATE_PASSPHRASE'),   // se a chave é cifrada
+],
+
+'inter' => [
+    'certificate' => env('INTER_CERTIFICATE'),            // caminho do .crt
+    'privateKey'  => env('INTER_PRIVATE_KEY'),            // caminho do .key
+    'passphrase'  => env('INTER_CERTIFICATE_PASSPHRASE'),
+],
+```
+
+A documentação do Inter manda juntar os dois com `openssl pkcs12 -export` antes
+de usar. **Não precisa** — o cURL aceita as metades como vêm. Se você já
+converteu, preencha só `certificate` com o caminho do `.p12`.
+
+O objeto `Certificate` é montado no `GatewayManager`, não no arquivo de config,
+e isso é por necessidade e não por gosto: o `config:cache` serializa a config
+com `var_export`, e um objeto sem `__set_state()` sai como código que não
+carrega; e o construtor levanta quando o arquivo não é legível, o que dentro da
+config seria **todo** comando do artisan. Montando na resolução do gateway, um
+caminho errado falha onde dá para ver.
+
+Preencher a chave privada sem o certificado levanta `GatewayNotConfigured` com
+essa mensagem, em vez de virar "este gateway precisa de certificado" mais tarde.
+
+### O token do Inter é emitido por escopo
+
+`scope` é obrigatório na requisição do token, e não existe token que carregue
+todas as permissões. Vazio na config, o pacote pede a união do que as
+capacidades do gateway usam — que é o que a maioria quer:
+
+```php
+'inter' => ['scopes' => env('INTER_SCOPES')],
+```
+
+Preencha só se a sua aplicação tem permissão mais estreita: pedir escopo que ela
+não tem reprova a requisição inteira. E **gerar token é limitado a 5 chamadas por
+minuto**, então o gateway guarda o que recebeu pela hora de validade — o manager
+reaproveita a instância dentro da requisição justamente para não jogar isso fora.
 
 Para ver o que está configurado e o que cada um faz:
 
@@ -102,7 +150,7 @@ if ($received->event->requiresLookup()) {
 
 ### O gateway que não assina é recusado, não aceito em silêncio
 
-Quatro dos nove não assinam a notificação. Registrar a rota e aceitar seria o
+Cinco dos dez não assinam a notificação. Registrar a rota e aceitar seria o
 caminho para confirmação de pagamento forjada por quem descobrir a URL, então a
 rota responde `501` — a menos que a config declare que você confere de outra
 forma:
@@ -114,9 +162,10 @@ forma:
 | | assina | é lido |
 | --- | :---: | :---: |
 | Asaas, Woovi, Mercado Pago, PagBank | ✅ | ✅ |
-| Efí, Pagar.me, Cielo | — | ✅ |
+| Efí, Inter, Pagar.me, Cielo | — | ✅ |
 | AbacatePay | ✅ | — |
 | Rede | — | — |
+
 
 Deixe `webhooks.route` como `null` para cuidar disso no seu próprio controller,
 o que é a escolha certa quando a notificação tem que fazer mais que despachar
