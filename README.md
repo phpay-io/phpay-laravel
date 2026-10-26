@@ -5,6 +5,10 @@ da configuração, e o webhook chega como evento.
 
 > **Em construção.** A v0.1 ainda não foi publicada no Packagist.
 
+<p align="center">
+    <img src="docs/img/primeiro-controller.gif" alt="Do .env ao teste: o controller não nomeia gateway nenhum, e o teste não sai para a rede" width="680">
+</p>
+
 ## Por que um pacote separado
 
 O `composer.json` do PHPay não tem dependência de framework, e isso é
