@@ -4,9 +4,18 @@ composer.lock
 .phpunit.cache/
 build/
 
-# configurações locais do Claude Code (pessoais, não versionar)
-.claude/settings.local.json
+# estado do Claude Code: configuração local e notas de trabalho.
+# O diretório inteiro, não só o settings: um `git add -A` commitaria rascunho
+# num repositório público, e nada aqui precisa ser versionado.
+.claude/
 
-# certificados de mTLS (nunca versionar)
+# certificados de mTLS (nunca versionar).
+# .crt e .key entram porque o Inter entrega o certificado em dois arquivos, e é
+# este README que ensina a apontar INTER_PRIVATE_KEY para um .key — chave
+# privada commitada não se desfaz com um revert.
 *.p12
+*.pfx
 *.pem
+*.crt
+*.cer
+*.key
