@@ -10,6 +10,19 @@
         "webhooks"
     ],
     "license": "BUSL-1.1",
+    "homepage": "https://github.com/phpay-io/phpay-laravel",
+    "support": {
+        "issues": "https://github.com/phpay-io/phpay-laravel/issues",
+        "source": "https://github.com/phpay-io/phpay-laravel",
+        "docs": "https://github.com/phpay-io/phpay/blob/develop/docs/README.md",
+        "security": "https://github.com/phpay-io/phpay-laravel/security/advisories/new"
+    },
+    "funding": [
+        {
+            "url": "https://github.com/sponsors/mariolucasdev",
+            "type": "github"
+        }
+    ],
     "authors": [
         {
             "name": "Mário Lucas",
